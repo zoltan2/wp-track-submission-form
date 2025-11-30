@@ -1,0 +1,60 @@
+/**
+ * Track Submission Form - Admin CSS
+ *
+ * Styles for admin interface
+ *
+ * @package TrackSubmissionForm
+ * @since 4.0.0
+ */
+
+/* Admin Tables */
+.wp-list-table.submissions th.column-submission_status {
+    width: 120px;
+}
+
+.wp-list-table.submissions .column-submission_status {
+    font-weight: 600;
+}
+
+/* Status badges in table */
+.tsf-status-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+/* Admin notices */
+.tsf-admin-notice {
+    padding: 12px 15px;
+    margin: 15px 0;
+    border-left: 4px solid;
+    background: #fff;
+}
+
+.tsf-admin-notice.notice-success {
+    border-color: #46b450;
+}
+
+.tsf-admin-notice.notice-error {
+    border-color: #dc3232;
+}
+
+/* Settings page */
+.tsf-settings-section {
+    background: #fff;
+    padding: 20px;
+    margin: 20px 0;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+}
+
+.tsf-settings-section h2 {
+    margin-top: 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+/* Dashboard specific styles are in the dashboard template */
