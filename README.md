@@ -1,6 +1,6 @@
 # Track Submission Form - WordPress Plugin
 
-![Version](https://img.shields.io/badge/version-3.5.1-blue.svg)
+![Version](https://img.shields.io/badge/version-3.5.2-blue.svg)
 ![Security](https://img.shields.io/badge/security-hardened-brightgreen.svg)
 ![WordPress](https://img.shields.io/badge/WordPress-5.0%2B-blue.svg)
 ![PHP](https://img.shields.io/badge/PHP-7.4%2B-purple.svg)

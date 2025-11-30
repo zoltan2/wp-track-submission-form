@@ -1,8 +1,8 @@
 <?php
 /*
 Plugin Name: Track Submission Form
-Description: Front-end form that lets artists safely submit track metadata, then redirects them to a Dropbox file-request link once the data is stored in WordPress. Handles validation, AJAX processing, and custom-post-type storage so nothing gets lost on the way to Dropbox. Now with enhanced security: REST API protection, secure credential storage, SQL injection prevention, IDOR protection, MP3 magic byte validation, email header injection protection, path traversal protection, SSL verification, enhanced REST API validation, automatic log purging, XSS prevention in JavaScript, and production-ready code (no debug logs). v3.5.1: Bug fixes and UX improvements.
-Version: 3.5.1
+Description: Front-end form that lets artists safely submit track metadata, then redirects them to a Dropbox file-request link once the data is stored in WordPress. Handles validation, AJAX processing, and custom-post-type storage so nothing gets lost on the way to Dropbox. Now with enhanced security: REST API protection, secure credential storage, SQL injection prevention, IDOR protection, MP3 magic byte validation, email header injection protection, path traversal protection, SSL verification, enhanced REST API validation, automatic log purging, XSS prevention in JavaScript, and production-ready code (no debug logs). v3.5.2: Fixed instrumental field display in admin.
+Version: 3.5.2
 Author: Zoltan Janosi
 Requires at least: 5.0
 Requires PHP: 7.4
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('TSF_VERSION', '3.5.1');
+define('TSF_VERSION', '3.5.2');
 define('TSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('TSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -2723,9 +2723,10 @@ Total: <?php echo esc_html($stats['total']); ?>
             <div class="tsf-field-row">
                 <div class="tsf-field-label"><?php _e('Instrumental:', 'tsf'); ?></div>
                 <div class="tsf-field-value">
-                    <span class="<?php echo $instrumental === 'Yes' ? 'tsf-status-yes' : 'tsf-status-no'; ?>">
-                        <?php echo esc_html($instrumental ?: 'No'); ?>
-                    </span>
+                    <label>
+                        <input type="checkbox" name="tsf_instrumental" value="1" <?php checked($instrumental, 1); ?> />
+                        <?php _e('Yes, this track is instrumental (no vocals)', 'tsf'); ?>
+                    </label>
                 </div>
             </div>
 

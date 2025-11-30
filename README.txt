@@ -1,7 +1,10 @@
 === Track Submission Form ===
-Version: 3.5.1
+Version: 3.5.2
 
 == Changelog ==
+
+= 3.5.2 =
+* Fixed: Instrumental field now displays as editable checkbox in admin (was read-only text)
 
 = 3.5.1 =
 * Fixed: Instrumental field (Y/N) can now be edited in admin metabox
