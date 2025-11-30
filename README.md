@@ -1,5 +1,11 @@
 # Track Submission Form - WordPress Plugin
 
+![Version](https://img.shields.io/badge/version-3.4.0-blue.svg)
+![WordPress](https://img.shields.io/badge/WordPress-5.0%2B-blue.svg)
+![PHP](https://img.shields.io/badge/PHP-7.4%2B-purple.svg)
+![License](https://img.shields.io/badge/license-GPL%20v2-green.svg)
+![Status](https://img.shields.io/badge/status-stable-brightgreen.svg)
+
 A professional WordPress plugin for artists to submit track metadata with automatic MP3 quality analysis and Dropbox integration.
 
 ## Features
