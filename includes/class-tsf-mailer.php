@@ -25,7 +25,7 @@ class TSF_Mailer {
     /**
      * Send new submission notification to admin
      */
-    public function send_admin_notification($submission_data) {
+    public function send_admin_notification($submission_data, $post_id = null) {
         $to = get_option('tsf_notification_email', get_option('admin_email'));
 
         if (!is_email($to)) {
@@ -41,6 +41,12 @@ class TSF_Mailer {
             $this->sanitize_email_header($submission_data['track_title'])
         );
 
+        // Add admin URL for quick access to submission
+        if ($post_id) {
+            $submission_data['admin_url'] = admin_url('post.php?post=' . $post_id . '&action=edit');
+            $submission_data['post_id'] = $post_id;
+        }
+
         $template = $this->load_template('admin-notification.php', $submission_data);
 
         return $this->send_email($to, $subject, $template, [
@@ -49,7 +55,7 @@ class TSF_Mailer {
     }
 
     /**
-     * Send confirmation to submitter
+     * Send confirmation to submitter (artist)
      */
     public function send_submission_confirmation($submission_data) {
         $to = $submission_data['email'];
@@ -69,6 +75,62 @@ class TSF_Mailer {
         return $this->send_email($to, $subject, $template, [
             'content_type' => 'text/html'
         ]);
+    }
+
+    /**
+     * Send artist confirmation email on successful submission
+     */
+    public function send_artist_confirmation($submission_data, $quality_score = null) {
+        $to = $submission_data['email'];
+
+        if (!is_email($to)) {
+            return false;
+        }
+
+        $artist = $this->sanitize_email_header($submission_data['artist']);
+        $track_title = $this->sanitize_email_header($submission_data['track_title']);
+
+        $subject = sprintf(__('Track Submission Confirmed - %s', 'tsf'), $track_title);
+
+        // Build email body
+        $body_parts = [
+            sprintf(__("Hi %s,", 'tsf'), $artist),
+            "",
+            __("Thank you for submitting your track!", 'tsf'),
+            "",
+            __("Track Details:", 'tsf'),
+            sprintf(__("- Title: %s", 'tsf'), $track_title),
+            sprintf(__("- Genre: %s", 'tsf'), $submission_data['genre']),
+            sprintf(__("- Release Date: %s", 'tsf'), $submission_data['release_date']),
+        ];
+
+        // Add quality score if available
+        if ($quality_score !== null) {
+            $body_parts[] = "";
+            $body_parts[] = sprintf(__("Quality Score: %d/100", 'tsf'), $quality_score);
+        }
+
+        // Add next steps
+        $body_parts[] = "";
+        $body_parts[] = __("What happens next:", 'tsf');
+        $body_parts[] = __("1. Our team will review your submission", 'tsf');
+        $body_parts[] = __("2. You'll hear back from us within 5-7 business days", 'tsf');
+
+        // Add Dropbox upload link if configured
+        $dropbox_url = get_option('tsf_dropbox_url');
+        if ($dropbox_url && get_option('tsf_dropbox_method', 'file_request') === 'file_request') {
+            $body_parts[] = "";
+            $body_parts[] = sprintf(__("Please upload your MP3 file here: %s", 'tsf'), $dropbox_url);
+        }
+
+        $body_parts[] = "";
+        $body_parts[] = __("Best regards,", 'tsf');
+        $body_parts[] = __("The Team", 'tsf');
+
+        $body = implode("\n", $body_parts);
+
+        $headers = ['Content-Type: text/plain; charset=UTF-8'];
+        return wp_mail($to, $subject, $body, $headers);
     }
 
     /**

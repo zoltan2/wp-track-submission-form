@@ -114,9 +114,9 @@ if (!defined('ABSPATH')) {
         </div>
 
         <div class="tsf-field">
-            <label for="track_url"><?php _e('Track URL', 'tsf'); ?> <span class="required">*</span></label>
-            <input type="url" id="track_url" name="track_url" placeholder="https://" required aria-required="true" />
-            <span class="tsf-field-hint"><?php _e('Link to your track on Spotify, Bandcamp, YouTube, etc.', 'tsf'); ?></span>
+            <label for="track_url"><?php _e('Track URL', 'tsf'); ?> <span class="description">(<?php _e('Required for releases within 30 days', 'tsf'); ?>)</span></label>
+            <input type="url" id="track_url" name="track_url" placeholder="https://" />
+            <span class="tsf-field-hint"><?php _e('Link to your track on Spotify, Bandcamp, YouTube, etc. Optional for future releases.', 'tsf'); ?></span>
         </div>
 
         <div class="tsf-field">

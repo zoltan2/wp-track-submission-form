@@ -1707,6 +1707,37 @@
                 <p><strong>Label:</strong> ${this.escapeHtml(label)}</p>
             </div>`);
 
+            // Multi-track listing
+            const trackInputs = this.form.querySelectorAll('input[name^="tracks["][name$="[title]"]');
+            if (trackInputs.length > 0) {
+                let tracksSection = '<div class="tsf-summary-section"><h4>📀 Track Listing</h4>';
+
+                if (trackInputs.length === 1) {
+                    // Single track
+                    const trackTitle = formData.get('tracks[1][title]');
+                    tracksSection += `<p><strong>Track:</strong> ${this.escapeHtml(trackTitle || 'Not provided')}</p>`;
+                } else {
+                    // Multiple tracks
+                    tracksSection += '<ol>';
+                    for (let i = 1; i <= trackInputs.length; i++) {
+                        const trackTitle = formData.get(`tracks[${i}][title]`);
+                        const trackDuration = formData.get(`tracks[${i}][duration]`);
+
+                        if (trackTitle && trackTitle.trim() !== '') {
+                            tracksSection += `<li><strong>${this.escapeHtml(trackTitle)}</strong>`;
+                            if (trackDuration && trackDuration.trim() !== '') {
+                                tracksSection += ` <span style="color: #666; font-size: 0.9em;">(${this.escapeHtml(trackDuration)})</span>`;
+                            }
+                            tracksSection += `</li>`;
+                        }
+                    }
+                    tracksSection += '</ol>';
+                }
+
+                tracksSection += '</div>';
+                summary.push(tracksSection);
+            }
+
             // MP3 upload status and quality score
             const mp3Filename = formData.get('mp3_filename');
             const qcReportJson = formData.get('qc_report');

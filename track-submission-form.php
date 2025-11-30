@@ -1,8 +1,8 @@
 <?php
 /*
 Plugin Name: Track Submission Form
-Description: Front-end form that lets artists safely submit track metadata, then redirects them to a Dropbox file-request link once the data is stored in WordPress. Handles validation, AJAX processing, and custom-post-type storage so nothing gets lost on the way to Dropbox. Now with enhanced security: REST API protection, secure credential storage, SQL injection prevention, IDOR protection, MP3 magic byte validation, email header injection protection, path traversal protection, SSL verification, enhanced REST API validation, automatic log purging, XSS prevention in JavaScript, and production-ready code (no debug logs). v3.5.0: Security-hardened release ready for commercial use.
-Version: 3.5.0
+Description: Front-end form that lets artists safely submit track metadata, then redirects them to a Dropbox file-request link once the data is stored in WordPress. Handles validation, AJAX processing, and custom-post-type storage so nothing gets lost on the way to Dropbox. Now with enhanced security: REST API protection, secure credential storage, SQL injection prevention, IDOR protection, MP3 magic byte validation, email header injection protection, path traversal protection, SSL verification, enhanced REST API validation, automatic log purging, XSS prevention in JavaScript, and production-ready code (no debug logs). v3.5.1: Bug fixes and UX improvements.
+Version: 3.5.1
 Author: Zoltan Janosi
 Requires at least: 5.0
 Requires PHP: 7.4
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('TSF_VERSION', '3.5.0');
+define('TSF_VERSION', '3.5.1');
 define('TSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('TSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -1239,7 +1239,8 @@ Total: <?php echo esc_html($stats['total']); ?>
         ];
 
         // Basic validation (track_title, duration, instrumental, platform, type auto-generated - not required in POST)
-        $required_fields = ['artist', 'genre', 'release_date', 'email', 'track_url', 'label', 'country', 'description'];
+        // Note: track_url is conditionally required based on release date
+        $required_fields = ['artist', 'genre', 'release_date', 'email', 'label', 'country', 'description'];
         foreach ($required_fields as $field) {
             if (empty($data[$field])) {
                 wp_send_json_error(['message' => sprintf(__('Field %s is required', 'tsf'), $field)], 400);
@@ -1251,8 +1252,20 @@ Total: <?php echo esc_html($stats['total']); ?>
             wp_send_json_error(['message' => __('Invalid email address', 'tsf')], 400);
         }
 
-        if (!filter_var($data['track_url'], FILTER_VALIDATE_URL)) {
-            wp_send_json_error(['message' => __('Invalid track URL', 'tsf')], 400);
+        // Track URL validation - optional for future releases (> 30 days away)
+        $release_date = strtotime($data['release_date']);
+        $thirty_days_from_now = strtotime('+30 days');
+
+        if (empty($data['track_url'])) {
+            // Allow empty URL only for future releases
+            if ($release_date < $thirty_days_from_now) {
+                wp_send_json_error(['message' => __('Track URL is required for releases within the next 30 days', 'tsf')], 400);
+            }
+        } else {
+            // If URL provided, validate it
+            if (!filter_var($data['track_url'], FILTER_VALIDATE_URL)) {
+                wp_send_json_error(['message' => __('Invalid track URL', 'tsf')], 400);
+            }
         }
 
         // Validate social URL if provided
@@ -1405,8 +1418,15 @@ Total: <?php echo esc_html($stats['total']); ?>
             error_log('TSF DEBUG - Skipping Dropbox upload: Dropbox URL not configured in settings');
         }
 
-        // Send notification email
-        $this->send_notification_email($data);
+        // Send notification email with post ID for admin URL
+        $this->send_notification_email($data, $post_id);
+
+        // Send confirmation email to artist
+        $quality_score = isset($qc_report_data['quality_score']) ? intval($qc_report_data['quality_score']) : null;
+        if (class_exists('TSF_Mailer')) {
+            $mailer = new TSF_Mailer();
+            $mailer->send_artist_confirmation($data, $quality_score);
+        }
 
         // Always redirect to thank you page, NOT to Dropbox
         wp_send_json_success([
@@ -1554,7 +1574,7 @@ Total: <?php echo esc_html($stats['total']); ?>
         return isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '0.0.0.0';
     }
 
-    private function send_notification_email($data) {
+    private function send_notification_email($data, $post_id = null) {
         $to = get_option('tsf_notification_email', get_option('admin_email'));
 
         // Validate email
@@ -1565,14 +1585,25 @@ Total: <?php echo esc_html($stats['total']); ?>
 
         $subject = sprintf(__('New Track Submission: %s - %s', 'tsf'), $data['artist'], $data['track_title']);
 
-        $body = sprintf(
-            __("New track submission received:\n\nArtist: %s\nTrack: %s\nGenre: %s\nEmail: %s\nTrack URL: %s\n\nView all submissions in admin panel.", 'tsf'),
-            $data['artist'],
-            $data['track_title'],
-            $data['genre'],
-            $data['email'],
-            $data['track_url']
-        );
+        // Build email body with admin URL for quick access
+        $body_parts = [
+            __("New track submission received:", 'tsf'),
+            "",
+            sprintf(__("Artist: %s", 'tsf'), $data['artist']),
+            sprintf(__("Track: %s", 'tsf'), $data['track_title']),
+            sprintf(__("Genre: %s", 'tsf'), $data['genre']),
+            sprintf(__("Email: %s", 'tsf'), $data['email']),
+            sprintf(__("Track URL: %s", 'tsf'), $data['track_url']),
+        ];
+
+        // Add direct link to submission in admin
+        if ($post_id) {
+            $admin_url = admin_url('post.php?post=' . $post_id . '&action=edit');
+            $body_parts[] = "";
+            $body_parts[] = sprintf(__("View submission: %s", 'tsf'), $admin_url);
+        }
+
+        $body = implode("\n", $body_parts);
 
         $headers = ['Content-Type: text/plain; charset=UTF-8'];
         $result = wp_mail($to, $subject, $body, $headers);
@@ -2090,6 +2121,17 @@ Total: <?php echo esc_html($stats['total']); ?>
                     </button>
                 </p>
             </form>
+
+            <!-- Plugin Version -->
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 12px;">
+                <p>
+                    <strong><?php esc_html_e('Track Submission Form', 'tsf'); ?></strong>
+                    <?php esc_html_e('version', 'tsf'); ?> <?php echo esc_html(TSF_VERSION); ?>
+                    <?php if (defined('WP_DEBUG') && WP_DEBUG): ?>
+                        <span style="color: #d63638; font-weight: 600;"> | <?php esc_html_e('DEBUG MODE ENABLED', 'tsf'); ?></span>
+                    <?php endif; ?>
+                </p>
+            </div>
         </div>
         <?php
     }
@@ -2972,7 +3014,7 @@ Total: <?php echo esc_html($stats['total']); ?>
 
         foreach ($fields as $field) {
             if (isset($_POST[$field])) {
-                if ($field === 'tsf_optin') {
+                if (in_array($field, ['tsf_optin', 'tsf_instrumental'])) {
                     update_post_meta($post_id, $field, 1);
                 } elseif ($field === 'tsf_created_at') {
                     $datetime = sanitize_text_field($_POST[$field]);
@@ -2988,7 +3030,8 @@ Total: <?php echo esc_html($stats['total']); ?>
                     update_post_meta($post_id, $field, sanitize_text_field($_POST[$field]));
                 }
             } else {
-                if ($field === 'tsf_optin') {
+                // Handle checkboxes that are unchecked (no POST data sent)
+                if (in_array($field, ['tsf_optin', 'tsf_instrumental'])) {
                     update_post_meta($post_id, $field, 0);
                 }
             }

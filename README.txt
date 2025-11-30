@@ -1,7 +1,16 @@
 === Track Submission Form ===
-Version: 3.5.0
+Version: 3.5.1
 
 == Changelog ==
+
+= 3.5.1 =
+* Fixed: Instrumental field (Y/N) can now be edited in admin metabox
+* Added: Direct admin URL link in notification emails to admins
+* Added: Automatic confirmation email sent to artists upon successful submission
+* Added: Plugin version number displayed in admin settings page
+* Improved: Track URL field is now optional for future releases (>30 days away)
+* Fixed: Multi-track listings now display properly in Step 4 recap
+* UX: Better messaging for optional vs required fields
 
 = 3.5.0 - SECURITY RELEASE =
 **CRITICAL SECURITY FIXES - All users should upgrade immediately**
