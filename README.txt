@@ -1,7 +1,18 @@
 === Track Submission Form ===
-Version: 3.5.2
+Version: 3.6.0
 
 == Changelog ==
+
+= 3.6.0 - DROPBOX OAUTH 2.0 =
+* Added: OAuth 2.0 refresh token support for Dropbox API
+* Added: Automatic token renewal - never expires again!
+* Added: New OAuth setup wizard in settings
+* Added: App Key and App Secret configuration
+* Added: One-click authorization flow
+* Added: Disconnect/reconnect Dropbox option
+* Improved: Token automatically refreshes before API calls
+* Improved: Better error messages for Dropbox connection issues
+* Removed: Deprecated 4-hour short-lived token method
 
 = 3.5.2 =
 * Fixed: Instrumental field now displays as editable checkbox in admin (was read-only text)

@@ -1,8 +1,8 @@
 <?php
 /*
 Plugin Name: Track Submission Form
-Description: Front-end form that lets artists safely submit track metadata, then redirects them to a Dropbox file-request link once the data is stored in WordPress. Handles validation, AJAX processing, and custom-post-type storage so nothing gets lost on the way to Dropbox. Now with enhanced security: REST API protection, secure credential storage, SQL injection prevention, IDOR protection, MP3 magic byte validation, email header injection protection, path traversal protection, SSL verification, enhanced REST API validation, automatic log purging, XSS prevention in JavaScript, and production-ready code (no debug logs). v3.5.2: Fixed instrumental field display in admin.
-Version: 3.5.2
+Description: Front-end form that lets artists safely submit track metadata, then redirects them to a Dropbox file-request link once the data is stored in WordPress. Handles validation, AJAX processing, and custom-post-type storage so nothing gets lost on the way to Dropbox. Now with enhanced security: REST API protection, secure credential storage, SQL injection prevention, IDOR protection, MP3 magic byte validation, email header injection protection, path traversal protection, SSL verification, enhanced REST API validation, automatic log purging, XSS prevention in JavaScript, and production-ready code (no debug logs). v3.6.0: OAuth 2.0 refresh tokens - never expire!
+Version: 3.6.0
 Author: Zoltan Janosi
 Requires at least: 5.0
 Requires PHP: 7.4
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('TSF_VERSION', '3.5.2');
+define('TSF_VERSION', '3.6.0');
 define('TSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('TSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -1471,12 +1471,14 @@ Total: <?php echo esc_html($stats['total']); ?>
     }
 
     private function send_mp3_to_dropbox_api($full_path, $filename, $post_id) {
-        $api_token = get_option('tsf_dropbox_api_token', '');
+        // Get auto-refreshing access token (uses refresh token if needed)
+        $api_token = $this->get_dropbox_access_token();
         $dropbox_folder = get_option('tsf_dropbox_folder', '/Track Submissions');
 
         if (empty($api_token)) {
-            error_log("TSF: Dropbox API token not configured");
+            error_log("TSF: Dropbox API token not available. Check OAuth setup in settings.");
             update_post_meta($post_id, 'tsf_dropbox_status', 'no_api_token');
+            update_post_meta($post_id, 'tsf_dropbox_error', 'OAuth not configured or token refresh failed');
             return false;
         }
 
@@ -1879,6 +1881,33 @@ Total: <?php echo esc_html($stats['total']); ?>
                 update_option('tsf_dropbox_url', $dropbox_url);
             }
 
+            // Dropbox OAuth settings (App Key & Secret for refresh tokens)
+            $dropbox_app_key = isset($_POST['tsf_dropbox_app_key']) ? sanitize_text_field($_POST['tsf_dropbox_app_key']) : '';
+            update_option('tsf_dropbox_app_key', $dropbox_app_key);
+
+            $dropbox_app_secret = isset($_POST['tsf_dropbox_app_secret']) ? sanitize_text_field($_POST['tsf_dropbox_app_secret']) : '';
+            update_option('tsf_dropbox_app_secret', $dropbox_app_secret);
+
+            // Handle disconnect
+            if (isset($_POST['tsf_disconnect_dropbox']) && $_POST['tsf_disconnect_dropbox'] === '1') {
+                delete_option('tsf_dropbox_access_token');
+                delete_option('tsf_dropbox_refresh_token');
+                delete_option('tsf_dropbox_token_expires_at');
+                echo '<div class="notice notice-success"><p>' . esc_html__('Dropbox disconnected successfully.', 'tsf') . '</p></div>';
+            }
+
+            // Handle OAuth authorization code exchange
+            if (isset($_POST['tsf_dropbox_auth_code']) && !empty($_POST['tsf_dropbox_auth_code'])) {
+                $auth_code = sanitize_text_field($_POST['tsf_dropbox_auth_code']);
+                $result = $this->exchange_dropbox_auth_code($auth_code, $dropbox_app_key, $dropbox_app_secret);
+
+                if ($result['success']) {
+                    echo '<div class="notice notice-success"><p>' . esc_html__('Dropbox connected successfully! Refresh token saved.', 'tsf') . '</p></div>';
+                } else {
+                    echo '<div class="notice notice-error"><p>' . esc_html__('Dropbox connection failed: ', 'tsf') . esc_html($result['error']) . '</p></div>';
+                }
+            }
+
             $dropbox_token = isset($_POST['tsf_dropbox_api_token']) ? sanitize_text_field($_POST['tsf_dropbox_api_token']) : '';
             update_option('tsf_dropbox_api_token', $dropbox_token);
 
@@ -1982,11 +2011,57 @@ Total: <?php echo esc_html($stats['total']); ?>
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row"><?php esc_html_e('Dropbox API Access Token', 'tsf'); ?></th>
+                        <th scope="row"><?php esc_html_e('Dropbox OAuth Setup', 'tsf'); ?></th>
                         <td>
-                            <?php $dropbox_token = get_option('tsf_dropbox_api_token', ''); ?>
-                            <input type="password" name="tsf_dropbox_api_token" value="<?php echo esc_attr($dropbox_token); ?>" class="regular-text" placeholder="sl.xxxxxxxxxxxxx" />
-                            <p class="description"><?php esc_html_e('Required for "API" method. Get from https://www.dropbox.com/developers/apps', 'tsf'); ?></p>
+                            <?php
+                            $dropbox_app_key = get_option('tsf_dropbox_app_key', '');
+                            $dropbox_app_secret = get_option('tsf_dropbox_app_secret', '');
+                            $dropbox_refresh_token = get_option('tsf_dropbox_refresh_token', '');
+                            $redirect_uri = admin_url('admin.php?page=tsf-settings');
+                            ?>
+
+                            <h4 style="margin-top:0;"><?php esc_html_e('Step 1: App Credentials', 'tsf'); ?></h4>
+                            <p>
+                                <label><?php esc_html_e('App Key:', 'tsf'); ?></label><br>
+                                <input type="text" name="tsf_dropbox_app_key" value="<?php echo esc_attr($dropbox_app_key); ?>" class="regular-text" placeholder="abc123..." />
+                            </p>
+                            <p>
+                                <label><?php esc_html_e('App Secret:', 'tsf'); ?></label><br>
+                                <input type="password" name="tsf_dropbox_app_secret" value="<?php echo esc_attr($dropbox_app_secret); ?>" class="regular-text" placeholder="xyz789..." />
+                            </p>
+                            <p class="description">
+                                <?php esc_html_e('Get these from:', 'tsf'); ?> <a href="https://www.dropbox.com/developers/apps" target="_blank">Dropbox App Settings</a> → <strong>Settings tab</strong>
+                            </p>
+
+                            <?php if ($dropbox_app_key && $dropbox_app_secret): ?>
+                                <hr style="margin: 20px 0;">
+                                <h4><?php esc_html_e('Step 2: Authorization', 'tsf'); ?></h4>
+                                <?php if ($dropbox_refresh_token): ?>
+                                    <p style="color: #46b450; font-weight: 600;">
+                                        ✅ <?php esc_html_e('Connected! Refresh token saved. Auto-renewal enabled.', 'tsf'); ?>
+                                    </p>
+                                    <p>
+                                        <button type="button" class="button" onclick="if(confirm('Disconnect Dropbox? You will need to re-authorize.')) { document.getElementById('tsf_disconnect_dropbox').value='1'; this.form.submit(); }"><?php esc_html_e('Disconnect Dropbox', 'tsf'); ?></button>
+                                        <input type="hidden" id="tsf_disconnect_dropbox" name="tsf_disconnect_dropbox" value="">
+                                    </p>
+                                <?php else: ?>
+                                    <p>
+                                        <a href="<?php echo esc_url($this->get_dropbox_auth_url($dropbox_app_key, $redirect_uri)); ?>" class="button button-primary" target="_blank">
+                                            <?php esc_html_e('1. Authorize with Dropbox', 'tsf'); ?>
+                                        </a>
+                                    </p>
+                                    <p class="description"><?php esc_html_e('Click the button above, approve the app, then copy the authorization code below:', 'tsf'); ?></p>
+                                    <p>
+                                        <label><?php esc_html_e('Authorization Code:', 'tsf'); ?></label><br>
+                                        <input type="text" name="tsf_dropbox_auth_code" class="regular-text" placeholder="<?php esc_attr_e('Paste code here...', 'tsf'); ?>" />
+                                    </p>
+                                    <p>
+                                        <button type="submit" class="button button-primary"><?php esc_html_e('2. Complete Connection', 'tsf'); ?></button>
+                                    </p>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <p class="description"><?php esc_html_e('Save App Key and App Secret first, then you can authorize.', 'tsf'); ?></p>
+                            <?php endif; ?>
                         </td>
                     </tr>
                     <tr>
@@ -3232,6 +3307,115 @@ Total: <?php echo esc_html($stats['total']); ?>
     <?php
     return ob_get_clean();
 }
+
+    /**
+     * Generate Dropbox OAuth authorization URL
+     */
+    private function get_dropbox_auth_url($app_key, $redirect_uri) {
+        $params = [
+            'client_id' => $app_key,
+            'response_type' => 'code',
+            'token_access_type' => 'offline', // Request refresh token
+        ];
+
+        return 'https://www.dropbox.com/oauth2/authorize?' . http_build_query($params);
+    }
+
+    /**
+     * Exchange authorization code for access token and refresh token
+     */
+    private function exchange_dropbox_auth_code($auth_code, $app_key, $app_secret) {
+        $response = wp_remote_post('https://api.dropboxapi.com/oauth2/token', [
+            'body' => [
+                'code' => $auth_code,
+                'grant_type' => 'authorization_code',
+                'client_id' => $app_key,
+                'client_secret' => $app_secret,
+            ],
+            'timeout' => 30,
+        ]);
+
+        if (is_wp_error($response)) {
+            return ['success' => false, 'error' => $response->get_error_message()];
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        $status = wp_remote_retrieve_response_code($response);
+
+        if ($status !== 200 || !isset($body['access_token'])) {
+            $error = isset($body['error_description']) ? $body['error_description'] : 'Unknown error';
+            return ['success' => false, 'error' => $error];
+        }
+
+        // Save tokens
+        update_option('tsf_dropbox_access_token', $body['access_token']);
+        update_option('tsf_dropbox_refresh_token', $body['refresh_token']);
+        update_option('tsf_dropbox_token_expires_at', time() + ($body['expires_in'] ?? 14400)); // 4 hours
+
+        return ['success' => true];
+    }
+
+    /**
+     * Refresh Dropbox access token using refresh token
+     */
+    private function refresh_dropbox_access_token() {
+        $app_key = get_option('tsf_dropbox_app_key');
+        $app_secret = get_option('tsf_dropbox_app_secret');
+        $refresh_token = get_option('tsf_dropbox_refresh_token');
+
+        if (!$app_key || !$app_secret || !$refresh_token) {
+            return false;
+        }
+
+        $response = wp_remote_post('https://api.dropboxapi.com/oauth2/token', [
+            'body' => [
+                'grant_type' => 'refresh_token',
+                'refresh_token' => $refresh_token,
+                'client_id' => $app_key,
+                'client_secret' => $app_secret,
+            ],
+            'timeout' => 30,
+        ]);
+
+        if (is_wp_error($response)) {
+            error_log('TSF: Dropbox token refresh failed: ' . $response->get_error_message());
+            return false;
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        $status = wp_remote_retrieve_response_code($response);
+
+        if ($status !== 200 || !isset($body['access_token'])) {
+            error_log('TSF: Dropbox token refresh failed: ' . ($body['error_description'] ?? 'Unknown error'));
+            return false;
+        }
+
+        // Save new access token
+        update_option('tsf_dropbox_access_token', $body['access_token']);
+        update_option('tsf_dropbox_token_expires_at', time() + ($body['expires_in'] ?? 14400));
+
+        return true;
+    }
+
+    /**
+     * Get valid Dropbox access token (auto-refresh if expired)
+     */
+    private function get_dropbox_access_token() {
+        $access_token = get_option('tsf_dropbox_access_token');
+        $expires_at = get_option('tsf_dropbox_token_expires_at', 0);
+
+        // Check if token is expired or will expire in next 5 minutes
+        if (time() >= ($expires_at - 300)) {
+            // Token expired, refresh it
+            if ($this->refresh_dropbox_access_token()) {
+                $access_token = get_option('tsf_dropbox_access_token');
+            } else {
+                return false;
+            }
+        }
+
+        return $access_token;
+    }
 
 }
 
