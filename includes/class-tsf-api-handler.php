@@ -618,6 +618,30 @@ class TSF_API_Handler {
             ], 400);
         }
 
+        // SECURITY: Validate MIME type before processing
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime_type = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+
+        $allowed_mimes = ['audio/mpeg', 'audio/mp3', 'audio/mpeg3', 'audio/x-mpeg-3'];
+        if (!in_array($mime_type, $allowed_mimes, true)) {
+            error_log('TSF: Invalid MIME type detected: ' . $mime_type);
+            return new WP_REST_Response([
+                'success' => false,
+                'message' => __('Invalid file type. Only MP3 files are allowed.', 'tsf')
+            ], 400);
+        }
+
+        // SECURITY: Enforce maximum file size (50MB)
+        $max_size = 50 * 1024 * 1024;
+        if (filesize($file['tmp_name']) > $max_size) {
+            error_log('TSF: File too large: ' . filesize($file['tmp_name']) . ' bytes');
+            return new WP_REST_Response([
+                'success' => false,
+                'message' => __('File too large. Maximum size is 50MB.', 'tsf')
+            ], 400);
+        }
+
         // Save MP3 to WordPress uploads directory temporarily
         $upload_dir = wp_upload_dir();
         $tsf_upload_dir = $upload_dir['basedir'] . '/tsf-submissions';
@@ -629,8 +653,8 @@ class TSF_API_Handler {
             file_put_contents($tsf_upload_dir . '/.htaccess', 'deny from all');
         }
 
-        // Generate unique filename: timestamp_random_originalname.mp3
-        $unique_filename = time() . '_' . wp_generate_password(8, false) . '_' . sanitize_file_name($file['name']);
+        // SECURITY: Generate completely random filename (don't trust user input)
+        $unique_filename = 'tsf_' . time() . '_' . wp_generate_password(16, false) . '.mp3';
         $destination = $tsf_upload_dir . '/' . $unique_filename;
 
         // Move uploaded file to permanent location

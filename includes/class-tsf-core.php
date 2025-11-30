@@ -391,10 +391,24 @@ class TSF_Core {
         if (!is_admin() && is_singular()) {
             global $post;
             if (is_a($post, 'WP_Post') && has_shortcode($post->post_content, 'track_submission_form')) {
-                header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-src https://embeds.beehiiv.com https://www.youtube.com https://open.spotify.com https://w.soundcloud.com https://bandcamp.com;");
+                // Strengthened CSP with specific directives
+                $csp = "default-src 'none'; " .
+                       "script-src 'self'; " .
+                       "style-src 'self' 'unsafe-inline'; " .  // unsafe-inline needed for WordPress inline styles
+                       "img-src 'self' https: data:; " .
+                       "font-src 'self' https://fonts.gstatic.com; " .
+                       "connect-src 'self' " . admin_url('admin-ajax.php', 'relative') . " " . rest_url('tsf/v1/', 'relative') . "; " .
+                       "frame-src https://embeds.beehiiv.com https://www.youtube.com https://open.spotify.com https://w.soundcloud.com https://bandcamp.com; " .
+                       "object-src 'none'; " .
+                       "base-uri 'self'; " .
+                       "form-action 'self'; " .
+                       "upgrade-insecure-requests;";
+
+                header("Content-Security-Policy: " . $csp);
                 header('X-Frame-Options: SAMEORIGIN');
                 header('X-Content-Type-Options: nosniff');
                 header('Referrer-Policy: strict-origin-when-cross-origin');
+                header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
             }
         }
     }

@@ -141,8 +141,9 @@ class TSF_Mailer {
             return $this->get_default_template($template_name, $data);
         }
 
-        // Extract data for use in template
-        extract($data);
+        // SECURITY: Don't use extract() - pass data array explicitly to template
+        // Template can access via $template_data array
+        $template_data = $data;
 
         ob_start();
         include $template_path;

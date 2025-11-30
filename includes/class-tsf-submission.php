@@ -437,23 +437,35 @@ class TSF_Submission {
             return null;
         }
 
-        // Get associated track posts
-        $track_ids = $wpdb->get_results($wpdb->prepare(
-            "SELECT track_post_id, track_order
-            FROM {$junction_table}
-            WHERE release_id = %d
-            ORDER BY track_order ASC",
+        // Get associated track posts with all metadata in single query (fix N+1 problem)
+        $track_data = $wpdb->get_results($wpdb->prepare(
+            "SELECT jt.track_post_id, jt.track_order, pm.meta_key, pm.meta_value
+            FROM {$junction_table} jt
+            LEFT JOIN {$wpdb->postmeta} pm ON jt.track_post_id = pm.post_id
+            WHERE jt.release_id = %d
+            ORDER BY jt.track_order ASC, pm.meta_key ASC",
             $release_id
         ), ARRAY_A);
 
-        $tracks = [];
-        foreach ($track_ids as $track_info) {
-            $track = $this->get($track_info['track_post_id']);
-            if ($track) {
-                $track['track_order'] = $track_info['track_order'];
-                $tracks[] = $track;
+        // Group metadata by track ID
+        $tracks_by_id = [];
+        foreach ($track_data as $row) {
+            $track_id = $row['track_post_id'];
+            if (!isset($tracks_by_id[$track_id])) {
+                $tracks_by_id[$track_id] = [
+                    'id' => $track_id,
+                    'track_order' => $row['track_order']
+                ];
+            }
+            if ($row['meta_key']) {
+                // Remove tsf_ prefix for cleaner data
+                $key = str_replace('tsf_', '', $row['meta_key']);
+                $tracks_by_id[$track_id][$key] = maybe_unserialize($row['meta_value']);
             }
         }
+
+        // Convert to indexed array, maintaining track order
+        $tracks = array_values($tracks_by_id);
 
         $release['tracks'] = $tracks;
 

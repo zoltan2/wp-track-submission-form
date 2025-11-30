@@ -1717,24 +1717,29 @@
                     <p><strong>Status:</strong> <span style="color: #059669;">✅ Uploaded & Analyzed</span></p>
                     <p><strong>File:</strong> ${this.escapeHtml(mp3Filename)}</p>`;
 
-                // Add quality score if available
+                // Add quality score if available (with proper validation to prevent XSS)
                 if (qcReportJson) {
                     try {
                         const qcReport = JSON.parse(qcReportJson);
-                        if (qcReport.quality_score !== undefined) {
-                            const score = qcReport.quality_score;
+                        // Validate score is actually a number
+                        const score = parseInt(qcReport.quality_score, 10);
+                        if (!isNaN(score) && score >= 0 && score <= 100) {
                             let scoreColor = '#dc3232'; // Red for low scores
                             if (score >= 80) scoreColor = '#46b450'; // Green for high scores
                             else if (score >= 60) scoreColor = '#f0b23e'; // Yellow for medium scores
 
                             mp3Section += `<p><strong>Quality Score:</strong> <span style="color: ${scoreColor}; font-weight: 600; font-size: 16px;">${score}%</span></p>`;
 
-                            // Add score breakdown
-                            if (qcReport.metadata_score !== undefined) {
+                            // Add score breakdown with validation
+                            const metaScore = parseInt(qcReport.metadata_score, 10);
+                            const audioScore = parseInt(qcReport.audio_score, 10);
+                            const profScore = parseInt(qcReport.professional_score, 10);
+
+                            if (!isNaN(metaScore) && !isNaN(audioScore) && !isNaN(profScore)) {
                                 mp3Section += `<p style="font-size: 13px; color: #666;">
-                                    Metadata: ${qcReport.metadata_score}/40 |
-                                    Audio: ${qcReport.audio_score}/30 |
-                                    Professional: ${qcReport.professional_score}/30
+                                    Metadata: ${metaScore}/40 |
+                                    Audio: ${audioScore}/30 |
+                                    Professional: ${profScore}/30
                                 </p>`;
                             }
                         }

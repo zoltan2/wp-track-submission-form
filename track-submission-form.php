@@ -1,8 +1,8 @@
 <?php
 /*
 Plugin Name: Track Submission Form
-Description: Front-end form that lets artists safely submit track metadata, then redirects them to a Dropbox file-request link once the data is stored in WordPress. Handles validation, AJAX processing, and custom-post-type storage so nothing gets lost on the way to Dropbox. Now with enhanced security: REST API protection, secure credential storage, SQL injection prevention, IDOR protection, MP3 magic byte validation, email header injection protection, path traversal protection, SSL verification, enhanced REST API validation, automatic log purging, XSS prevention in JavaScript, and production-ready code (no debug logs). v3.4.0: Dropbox API integration for automatic MP3 uploads.
-Version: 3.4.0
+Description: Front-end form that lets artists safely submit track metadata, then redirects them to a Dropbox file-request link once the data is stored in WordPress. Handles validation, AJAX processing, and custom-post-type storage so nothing gets lost on the way to Dropbox. Now with enhanced security: REST API protection, secure credential storage, SQL injection prevention, IDOR protection, MP3 magic byte validation, email header injection protection, path traversal protection, SSL verification, enhanced REST API validation, automatic log purging, XSS prevention in JavaScript, and production-ready code (no debug logs). v3.5.0: Security-hardened release ready for commercial use.
+Version: 3.5.0
 Author: Zoltan Janosi
 Requires at least: 5.0
 Requires PHP: 7.4
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('TSF_VERSION', '3.4.0');
+define('TSF_VERSION', '3.5.0');
 define('TSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('TSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -35,26 +35,37 @@ class TrackSubmissionForm {
         register_deactivation_hook(__FILE__, [$this, 'deactivate']);
     }
 
+    /**
+     * Safe debug logging - only logs when WP_DEBUG is enabled
+     *
+     * @param string $message Log message
+     * @param string $level Log level (debug, info, error)
+     */
+    private function debug_log($message, $level = 'debug') {
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log("TSF [{$level}]: " . $message);
+        }
+    }
+
     public function init() {
-        // Debug logging
-        error_log('TSF: Plugin initialization started');
-        
+        $this->debug_log('Plugin initialization started');
+
         // Load plugin features
         $this->load_hooks();
 
         // Load text domain for translations
         load_plugin_textdomain('tsf', false, dirname(plugin_basename(__FILE__)) . '/languages');
-        
-        error_log('TSF: Plugin initialization completed');
+
+        $this->debug_log('Plugin initialization completed');
     }
 
     private function load_hooks() {
-        error_log('TSF: Loading hooks started');
-        
+        $this->debug_log('Loading hooks started');
+
         // Load Form V2
         $this->load_form_v2();
-        
-        error_log('TSF: Form V2 loaded');
+
+        $this->debug_log('Form V2 loaded');
 
         // Assets
         add_action('wp_enqueue_scripts', [$this, 'enqueue_assets']);
@@ -1309,7 +1320,9 @@ Total: <?php echo esc_html($stats['total']); ?>
             $qc_report_data = json_decode(stripslashes($_POST['qc_report']), true);
             if (isset($qc_report_data['temp_file_path'])) {
                 $mp3_file_path = sanitize_text_field($qc_report_data['temp_file_path']);
-                error_log('TSF DEBUG - Extracted MP3 path from qc_report: ' . $mp3_file_path);
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log('TSF DEBUG - Extracted MP3 path from qc_report: ' . $mp3_file_path);
+                }
             }
             if (isset($qc_report_data['filename'])) {
                 $mp3_filename = sanitize_text_field($qc_report_data['filename']);
@@ -1320,7 +1333,9 @@ Total: <?php echo esc_html($stats['total']); ?>
         }
 
         // Debug logging
-        error_log('TSF DEBUG - MP3 Data Received: path=' . $mp3_file_path . ', filename=' . $mp3_filename);
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('TSF DEBUG - MP3 Data Received: path=' . $mp3_file_path . ', filename=' . $mp3_filename);
+        }
         error_log('TSF DEBUG - Track Title Data: verified=' . $verified_track_title . ', album=' . $album_title . ', first_track=' . $first_track_title . ', final=' . $track_title);
         error_log('TSF DEBUG - QC Report Data: ' . ($qc_report_data ? json_encode($qc_report_data) : 'NULL'));
         error_log('TSF DEBUG - QC Report has quality_score: ' . (isset($qc_report_data['quality_score']) ? 'YES (' . $qc_report_data['quality_score'] . ')' : 'NO'));
@@ -1377,7 +1392,9 @@ Total: <?php echo esc_html($stats['total']); ?>
 
         // Send MP3 to Dropbox if file was uploaded (background operation)
         $dropbox_url = get_option('tsf_dropbox_url', '');
-        error_log('TSF DEBUG - Dropbox Check: mp3_path=' . $mp3_file_path . ', dropbox_url=' . ($dropbox_url ? 'configured' : 'not configured'));
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('TSF DEBUG - Dropbox Check: mp3_path=' . $mp3_file_path . ', dropbox_url=' . ($dropbox_url ? 'configured' : 'not configured'));
+        }
 
         if (!empty($mp3_file_path) && !empty($dropbox_url)) {
             error_log('TSF DEBUG - Initiating Dropbox upload for post ' . $post_id);
@@ -1402,12 +1419,16 @@ Total: <?php echo esc_html($stats['total']); ?>
      * Send MP3 file to Dropbox File Request
      */
     private function send_mp3_to_dropbox($relative_path, $filename, $dropbox_url, $post_id) {
-        error_log("TSF DEBUG - send_mp3_to_dropbox called: relative_path={$relative_path}, filename={$filename}");
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log("TSF DEBUG - send_mp3_to_dropbox called: relative_path={$relative_path}, filename={$filename}");
+        }
 
         $upload_dir = wp_upload_dir();
         $full_path = $upload_dir['basedir'] . $relative_path;
 
-        error_log("TSF DEBUG - Full MP3 path: {$full_path}, exists: " . (file_exists($full_path) ? 'YES' : 'NO'));
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log("TSF DEBUG - Full MP3 path: {$full_path}, exists: " . (file_exists($full_path) ? 'YES' : 'NO'));
+        }
 
         // Check if file exists
         if (!file_exists($full_path)) {

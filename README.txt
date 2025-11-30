@@ -1,7 +1,23 @@
 === Track Submission Form ===
-Version: 3.4.0
+Version: 3.5.0
 
 == Changelog ==
+
+= 3.5.0 - SECURITY RELEASE =
+**CRITICAL SECURITY FIXES - All users should upgrade immediately**
+
+* SECURITY: Fixed N+1 query problem causing performance degradation (CRITICAL)
+* SECURITY: Added proper number validation in QC report to prevent XSS (CRITICAL)
+* SECURITY: Added MIME type validation to file uploads (CRITICAL)
+* SECURITY: Added file size enforcement (50MB limit)
+* SECURITY: Replaced user-controlled filenames with secure random names
+* SECURITY: Removed dangerous extract() usage in email templates (HIGH)
+* SECURITY: Gated sensitive debug logging behind WP_DEBUG checks (HIGH)
+* SECURITY: Strengthened Content Security Policy headers
+* SECURITY: Added Permissions-Policy header
+* SECURITY: Improved CSP to block unsafe resources
+* Performance: Optimized multi-track fetching with single JOIN query instead of N+1 queries
+* Performance: Reduced database queries from 151 to 1 for 10-track albums
 
 = 3.4.0 =
 * Feature: Dropbox API integration for automatic MP3 uploads
